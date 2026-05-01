@@ -1,4 +1,14 @@
 export const Colors = {
+  // New Spec Palette
+  cream: '#F5ECD7',       // Background
+  brown: '#8B5E3C',       // Headings/CTAs
+  deepBrown: '#2C1810',   // Body text
+  amber: '#C4956A',       // Accents
+  sage: '#B5C9B0',        // Success
+  warmGold: '#D4A76A',    // Achievements
+  white: '#FFFFFF',       // Cards
+  
+  // Legacy mappings to prevent breaks
   pink: '#FFB3C6',
   pinkD: '#F0728F',
   lav: '#C9B8F0',
@@ -15,11 +25,8 @@ export const Colors = {
   safLt: '#FFE0B2',
   gold: '#D4A017',
   goldLt: '#FFF3CC',
-  cream: '#FFF9F4',
-  brown: '#5C3317',
   mid: '#9B7B5C',
   light: '#F8F0E8',
-  white: '#FFFFFF',
   
   // Bedtime theme
   bedtimeBg: '#1A1040',

@@ -1,112 +1,180 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '../../constants/Colors';
+import { getPacks, getValues } from '../../services/api';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function ExploreScreen() {
+  const [packs, setPacks] = useState<any[]>([]);
+  const [values, setValues] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-export default function TabTwoScreen() {
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [packsRes, valuesRes] = await Promise.all([
+          getPacks(),
+          getValues()
+        ]);
+
+        console.log("packsres", packsRes);
+
+        // Strapi v5 returns arrays directly under the data key
+        if (packsRes?.data) setPacks(packsRes.data);
+        if (valuesRes?.data) setValues(valuesRes.data);
+      } catch (error) {
+        console.error("Failed to fetch Strapi data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.pinkD} />
+        <Text style={styles.loadingText}>Loading Library...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <SafeAreaView edges={['top']} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.headerTitle}>Library</Text>
+
+        {/* <Text style={styles.sectionTitle}>Available Packs</Text>
+        {packs.length === 0 ? (
+          <Text style={styles.emptyText}>No packs found.</Text>
+        ) : (
+          packs.map((pack: any) => (
+            <TouchableOpacity key={pack.id || pack.documentId} style={styles.card}>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{pack.title || pack.attributes?.title}</Text>
+                <Text style={styles.cardDesc} numberOfLines={2}>
+                  {pack.description || pack.attributes?.description || "No description"}
+                </Text>
+              </View>
+              <View style={styles.cardFooter}>
+                <Text style={styles.priceTag}>
+                  {(pack.isFree || pack.attributes?.isFree)
+                    ? "Free"
+                    : `$${pack.price || pack.attributes?.price || 0}`}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )} */}
+
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Individual Values</Text>
+        {values.length === 0 ? (
+          <Text style={styles.emptyText}>No values found.</Text>
+        ) : (
+          values.map((val: any) => (
+            <TouchableOpacity key={val.id || val.documentId} style={styles.card}>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{val.title || val.attributes?.title}</Text>
+                <Text style={styles.categoryTag}>{val.category || val.attributes?.category || 'General'}</Text>
+              </View>
+              <View style={styles.cardFooter}>
+                <Text style={styles.priceTag}>
+                  {(val.isFree || val.attributes?.isFree) ? "Free" : "Premium"}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
+    backgroundColor: Colors.cream,
   },
-  titleContainer: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.cream,
+  },
+  loadingText: {
+    marginTop: 16,
+    color: Colors.mid,
+    fontWeight: '600',
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: Colors.brown,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.brown,
+    marginBottom: 12,
+  },
+  emptyText: {
+    color: Colors.mid,
+    fontStyle: 'italic',
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
+  cardContent: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.brown,
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontSize: 13,
+    color: Colors.mid,
+  },
+  categoryTag: {
+    fontSize: 12,
+    color: Colors.lavD,
+    fontWeight: '600',
+  },
+  cardFooter: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  priceTag: {
+    backgroundColor: Colors.safLt,
+    color: Colors.saffron,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    fontWeight: '800',
+    fontSize: 12,
+    overflow: 'hidden',
+  }
 });

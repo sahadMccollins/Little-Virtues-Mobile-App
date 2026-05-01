@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>732835593435-jal47t25vrseuh4uvcsvn60k6eqhnk2t.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.732835593435-jal47t25vrseuh4uvcsvn60k6eqhnk2t</string>
+	<key>API_KEY</key>
+	<string>AIzaSyDL7CP0-2XFrAdzRXZkn7QBhb6gdFUjw1M</string>
+	<key>GCM_SENDER_ID</key>
+	<string>732835593435</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.littlevirtues</string>
+	<key>PROJECT_ID</key>
+	<string>little-virtues</string>
+	<key>STORAGE_BUCKET</key>
+	<string>little-virtues.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:732835593435:ios:14f392bb43e2f79d7b20fe</string>
+</dict>
+</plist>

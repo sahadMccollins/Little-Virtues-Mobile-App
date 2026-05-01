@@ -1,16 +1,88 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/Colors';
-
-const STORIES = [
-  { id: 1, icon: '🦁', title: 'The Brave Little Cub', meta: 'Courage · 6 min · Ages 5–8', color: ['#2D1B6B', '#4A2B9B'] },
-  { id: 2, icon: '🐢', title: 'Slow & Steady Wins Hearts', meta: 'Patience · 5 min · Ages 4–6', color: ['#1A3A40', '#0D5C63'] },
-  { id: 3, icon: '🌸', title: 'Radha\'s Garden of Kindness', meta: 'Kindness · 7 min · Ages 6–9', color: ['#3A1A40', '#6B2D8B'] },
-];
+import { getStories, getBedtimeCategories } from '../../services/api';
+import { Audio } from 'expo-av';
+import { Alert } from 'react-native';
 
 export default function StoriesScreen() {
+  const [stories, setStories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [activeCategory, setActiveCategory] = useState('All ✨');
+  const [loading, setLoading] = useState(true);
+
+  // Audio States
+  const [playingId, setPlayingId] = useState<number | null>(null);
+  const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
+
+  // Cleanup audio safely
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    });
+    return soundObj ? () => { soundObj.unloadAsync(); } : undefined;
+  }, [soundObj]);
+
+  useEffect(() => {
+    Promise.all([getStories(), getBedtimeCategories()]).then(([sData, cData]) => {
+      setStories(sData.data || []);
+      setCategories(cData.data || []);
+      setLoading(false);
+    }).catch(err => {
+      console.log('Error fetching stories data:', err);
+      setLoading(false);
+    });
+  }, []);
+
+  const featuredStory = stories.find(s => s.isFeatured) || stories[0];
+  const filteredStories = activeCategory === 'All ✨'
+    ? stories.filter(s => s.id !== featuredStory?.id)
+    : stories.filter(s => {
+      if (!s.categoryName) return false;
+      return activeCategory.toLowerCase().includes(s.categoryName.toLowerCase()) ||
+        s.categoryName.toLowerCase().includes(activeCategory.split(' ')[0].toLowerCase());
+    });
+
+  const togglePlay = async (story: any) => {
+    if (playingId === story.id) {
+      if (soundObj) {
+        await soundObj.stopAsync();
+        await soundObj.unloadAsync();
+      }
+      setPlayingId(null);
+      setSoundObj(null);
+      return;
+    }
+
+    if (!story.audioFile?.url) {
+      Alert.alert('No Audio', 'This story does not have an MP3 attached yet.');
+      return;
+    }
+
+    try {
+      if (soundObj) await soundObj.unloadAsync();
+
+      const audioUrl = `https://original-wonder-3fccc0ad1b.strapiapp.com${story.audioFile.url}`;
+      const { sound } = await Audio.Sound.createAsync({ uri: audioUrl });
+      setSoundObj(sound);
+      setPlayingId(story.id);
+      await sound.playAsync();
+
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) {
+          setPlayingId(null);
+        }
+      });
+    } catch (e) {
+      console.log("Audio Error:", e);
+      Alert.alert('Playback Error', 'Could not stream the story audio.');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#2D1B6B', '#1A1040']} style={styles.header}>
@@ -22,37 +94,70 @@ export default function StoriesScreen() {
 
       <ScrollView contentContainerStyle={styles.body}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moodRow}>
-          <View style={[styles.moodChip, styles.moodChipOn]}><Text style={styles.moodTextOn}>All ✨</Text></View>
-          <View style={styles.moodChip}><Text style={styles.moodTextOff}>Calming 🌊</Text></View>
-          <View style={styles.moodChip}><Text style={styles.moodTextOff}>Brave 🦁</Text></View>
-          <View style={styles.moodChip}><Text style={styles.moodTextOff}>Grateful 🙏</Text></View>
+          <TouchableOpacity onPress={() => setActiveCategory('All ✨')}>
+            <View style={[styles.moodChip, activeCategory === 'All ✨' && styles.moodChipOn]}>
+              <Text style={activeCategory === 'All ✨' ? styles.moodTextOn : styles.moodTextOff}>All ✨</Text>
+            </View>
+          </TouchableOpacity>
+          {categories.map((cat) => (
+            <TouchableOpacity key={cat.id} onPress={() => setActiveCategory(cat.name)}>
+              <View style={[styles.moodChip, activeCategory === cat.name && styles.moodChipOn]}>
+                <Text style={activeCategory === cat.name ? styles.moodTextOn : styles.moodTextOff}>{cat.name}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
-        <View style={styles.featuredCard}>
-          <LinearGradient colors={['#1A1040', '#2D1B6B']} style={styles.btArt}>
-            <Text style={{fontSize: 60}}>🌙</Text>
-          </LinearGradient>
-          <View style={styles.btInfo}>
-            <Text style={styles.btStoryTag}>🌟 Featured Tonight</Text>
-            <Text style={styles.btStoryName}>The Grateful Little Star</Text>
-            <Text style={styles.btStoryMeta}>Gratitude · <Text style={{color: Colors.mint}}>8 min</Text> · Ages 4–7</Text>
-          </View>
-        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={Colors.lavD} style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            {featuredStory && activeCategory === 'All ✨' && (
+              <View style={styles.featuredCard}>
+                <LinearGradient colors={[featuredStory.colorStart || '#1A1040', featuredStory.colorEnd || '#2D1B6B']} style={styles.btArt}>
+                  <Text style={{ fontSize: 60 }}>{featuredStory.icon}</Text>
+                </LinearGradient>
+                <View style={[styles.btInfo, { flexDirection: 'row', alignItems: 'center' }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.btStoryTag}>🌟 Featured Tonight</Text>
+                    <Text style={styles.btStoryName}>{featuredStory.title}</Text>
+                    <Text style={styles.btStoryMeta}>{featuredStory.categoryName} · <Text style={{ color: Colors.mint }}>{featuredStory.duration} min</Text> · Ages {featuredStory.ageRange}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.playBtn, { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.lavD }]}
+                    onPress={() => togglePlay(featuredStory)}
+                  >
+                    <Text style={{ color: 'white', fontSize: playingId === featuredStory.id ? 14 : 18, marginLeft: playingId === featuredStory.id ? 0 : 4 }}>
+                      {playingId === featuredStory.id ? '⏸️' : '▶'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
-        <View style={styles.list}>
-          {STORIES.map(story => (
-            <View key={story.id} style={styles.listItem}>
-               <LinearGradient colors={story.color as any} style={styles.listArt}>
-                 <Text style={{fontSize: 24}}>{story.icon}</Text>
-               </LinearGradient>
-               <View style={{flex: 1}}>
-                 <Text style={styles.listTitle}>{story.title}</Text>
-                 <Text style={styles.listMeta}>{story.meta}</Text>
-               </View>
-               <TouchableOpacity style={styles.playBtn}><Text style={{color: Colors.lav, fontSize: 12}}>▶</Text></TouchableOpacity>
+            <View style={styles.list}>
+              {filteredStories.map(story => (
+                <View key={story.id} style={styles.listItem}>
+                  <LinearGradient colors={[story.colorStart || '#2D1B6B', story.colorEnd || '#4A2B9B']} style={styles.listArt}>
+                    <Text style={{ fontSize: 24 }}>{story.icon}</Text>
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listTitle}>{story.title}</Text>
+                    <Text style={styles.listMeta}>{story.categoryName} · {story.duration} min · Ages {story.ageRange}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.playBtn}
+                    onPress={() => togglePlay(story)}
+                  >
+                    <Text style={{ color: Colors.lav, fontSize: playingId === story.id ? 10 : 12 }}>
+                      {playingId === story.id ? '⏸️' : '▶'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );

@@ -8,14 +8,17 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, continueAsGuest } = useAuth();
+  const { login, loginWithApple, loginWithGoogle, continueAsGuest } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
-    // In a real app, send api request here.
     if (email && password) {
-      await login({ email, name: 'Parent' });
-      router.replace('/(tabs)');
+      try {
+        await login({ email, password });
+        router.replace('/(tabs)');
+      } catch (error: any) {
+        alert(error.message || 'Login failed.');
+      }
     } else {
       alert('Please enter your email and password.');
     }
@@ -27,8 +30,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -78,7 +81,7 @@ export default function LoginScreen() {
           {Platform.OS === 'ios' && (
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
               cornerRadius={15}
               style={styles.appleButton}
               onPress={async () => {
@@ -90,21 +93,40 @@ export default function LoginScreen() {
                     ],
                   });
                   // Handle successful Apple sign in
-                  await login({ name: credential.fullName?.givenName || 'User', email: credential.email });
-                  router.replace('/(tabs)');
+                  if (credential.identityToken) {
+                    await loginWithApple(
+                      credential.identityToken,
+                      credential.fullName?.givenName || 'Apple User',
+                      credential.email || ''
+                    );
+                    router.replace('/(tabs)');
+                  } else {
+                    alert('No identity token returned from Apple.');
+                  }
                 } catch (e: any) {
                   if (e.code === 'ERR_REQUEST_CANCELED') {
                     // handle that the user canceled the sign-in flow
                   } else {
                     // handle other errors
+                    alert(e.message || 'Apple Sign-In failed.');
                   }
                 }
               }}
             />
           )}
 
-          {/* Fake Google Login for testing UI */}
-          <TouchableOpacity style={styles.googleButton}>
+          {/* Google Login */}
+          <TouchableOpacity 
+            style={styles.googleButton}
+            onPress={async () => {
+              try {
+                await loginWithGoogle();
+                router.replace('/(tabs)');
+              } catch (e: any) {
+                alert(e.message || 'Google Sign-In failed.');
+              }
+            }}
+          >
             <Text style={styles.googleButtonText}>G Sign in with Google</Text>
           </TouchableOpacity>
 
@@ -212,7 +234,7 @@ const styles = StyleSheet.create({
   appleButton: {
     width: '100%',
     height: 56,
-    marginBottom: 16,
+    marginBottom: 16
   },
   googleButton: {
     backgroundColor: Colors.white,

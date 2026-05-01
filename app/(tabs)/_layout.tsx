@@ -15,7 +15,7 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#f0e8e0',
-          height: 60,
+          height: 80,
           paddingBottom: 8,
           paddingTop: 8,
         },
@@ -58,8 +58,14 @@ export default function TabLayout() {
       <Tabs.Screen
         name="progress"
         options={{
-          title: 'Progress',
-          tabBarIcon: ({ color }) => <TabIcon emoji="📊" color={color} />,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <TabIcon emoji="👤" color={color} />,
         }}
       />
       <Tabs.Screen

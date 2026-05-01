@@ -1,17 +1,27 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Little Virtues",
+    "slug": "little-virtues",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "little-virtues",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "usesAppleSignIn": true,
+      "bundleIdentifier": "com.littlevirtues",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.littlevirtues.app",
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +48,22 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-notifications",
+      "@react-native-community/datetimepicker",
+      "@react-native-google-signin/google-signin",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "475012ac-464d-44ca-9aac-4cb7bd11ba0a"
+      }
+    },
+    "owner": "developermccollinss-organization"
   }
 }

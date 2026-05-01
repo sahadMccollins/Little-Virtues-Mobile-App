@@ -1,13 +1,17 @@
 import axios from 'axios';
 
-// IMPORTANT: For physical device, replace 127.0.0.1 with your computer's local IP!
-const api = axios.create({
-  baseURL: 'http://127.0.0.1:3001/api'
+// Strapi API Instance
+const strapiApi = axios.create({
+  // baseURL: 'http://192.168.1.17:1337/api'
+  baseURL: 'https://original-wonder-3fccc0ad1b.strapiapp.com/api'
 });
 
-export const getUser = () => api.get('/user').then(res => res.data);
-export const getChild = (id: string) => api.get(`/child/${id}`).then(res => res.data);
-export const addActivity = (childId: string, activity: any) => 
-  api.post(`/child/${childId}/activity`, activity).then(res => res.data);
+// Strapi Calls
+export const getDownloads = () => strapiApi.get('/downloads?populate[0]=file').then(res => res.data);
+export const getPacks = () => strapiApi.get('/packs?populate=*').then(res => res.data);
+export const getValues = () => strapiApi.get('/values?populate[0]=pack&populate[1]=coverImage&populate[2]=story&populate[3]=story.audioFile&populate[4]=flashcards').then(res => res.data);
+export const getValueById = (id: string | number) => strapiApi.get(`/values/${id}?populate[0]=pack&populate[1]=coverImage&populate[2]=story&populate[3]=story.audioFile&populate[4]=flashcards`).then(res => res.data);
+export const getStories = () => strapiApi.get('/bedtime-stories?populate[0]=audioFile').then(res => res.data);
+export const getBedtimeCategories = () => strapiApi.get('/bedtime-categories?sort=order:asc').then(res => res.data);
 
-export default api;
+export default strapiApi;

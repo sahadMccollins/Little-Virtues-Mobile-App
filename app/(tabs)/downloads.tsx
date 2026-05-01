@@ -1,17 +1,36 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/Colors';
-
-const PACKS = [
-  { id: 1, title: 'Bhagavad Gita for Kids', sub: '20 illustrated flashcards · PDF', icon: '🕉️', color: '#FFF0E0', textColor: '#FF6B35', btn: 'paid', gradient: ['#FF9933', '#FF6B35'] },
-  { id: 2, title: 'Hanuman Chalisa for Kids', sub: '40 verses · Story cards · PDF', icon: '🐒', color: '#FFE8E8', textColor: '#FF4444', btn: 'paid', gradient: ['#FF4444', '#FF6B35'] },
-  { id: 3, title: 'Daily Shlokas', sub: 'Morning & evening shlokas · Free', icon: '📿', color: '#EDE4FF', textColor: '#6B4ECC', btn: 'free', gradient: ['#6B4ECC', '#9B80D8'] },
-  { id: 4, title: '30-Day Values Cards', sub: 'One virtue per day · Free PDF', icon: '🌱', color: '#E4FFE8', textColor: '#00AA6B', btn: 'free', gradient: ['#00AA6B', '#5BBD96'] },
-];
+import { getDownloads } from '../../services/api';
+import * as Linking from 'expo-linking';
 
 export default function DownloadsScreen() {
+  const [downloads, setDownloads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDownloads().then(res => {
+      setDownloads(res.data || []);
+      setLoading(false);
+    }).catch(err => {
+      console.log('Error fetching downloads:', err);
+      setLoading(false);
+    });
+  }, []);
+
+  const handleDownload = (item: any) => {
+    if (!item.file?.url) {
+      Alert.alert('File Unavailable', 'This download does not have an attached PDF/File yet.');
+      return;
+    }
+    const fileUrl = `https://original-wonder-3fccc0ad1b.strapiapp.com${item.file.url}`;
+    Linking.openURL(fileUrl).catch(e => {
+      console.error('Download error:', e);
+      Alert.alert('Download Error', 'Could not open the file.');
+    });
+  };
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#FFE8CC', '#FFD6B2']} style={styles.header}>
@@ -25,46 +44,53 @@ export default function DownloadsScreen() {
         <View style={styles.dlPreview}>
           <Text style={styles.dlPreviewTitle}>⚡ Preview — Bhagavad Gita Flashcards</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewCards}>
-             <View style={styles.previewCard}>
-               <Text style={styles.pcEmoji}>🙏</Text>
-               <Text style={styles.pcTag}>Gita</Text>
-               <Text style={styles.pcText}>Do your duty with love</Text>
-             </View>
-             <View style={styles.previewCard}>
-               <Text style={styles.pcEmoji}>🌸</Text>
-               <Text style={styles.pcTag}>Gita</Text>
-               <Text style={styles.pcText}>Act without expecting reward</Text>
-             </View>
-             <View style={styles.previewCard}>
-               <Text style={styles.pcEmoji}>🕊️</Text>
-               <Text style={styles.pcTag}>Gita</Text>
-               <Text style={styles.pcText}>Stay calm in all situations</Text>
-             </View>
+            <View style={styles.previewCard}>
+              <Text style={styles.pcEmoji}>🙏</Text>
+              <Text style={styles.pcTag}>Gita</Text>
+              <Text style={styles.pcText}>Do your duty with love</Text>
+            </View>
+            <View style={styles.previewCard}>
+              <Text style={styles.pcEmoji}>🌸</Text>
+              <Text style={styles.pcTag}>Gita</Text>
+              <Text style={styles.pcText}>Act without expecting reward</Text>
+            </View>
+            <View style={styles.previewCard}>
+              <Text style={styles.pcEmoji}>🕊️</Text>
+              <Text style={styles.pcTag}>Gita</Text>
+              <Text style={styles.pcText}>Stay calm in all situations</Text>
+            </View>
           </ScrollView>
         </View>
 
         <Text style={styles.sectionLbl}>🕉️ Sacred Texts for Kids</Text>
 
-        <View style={styles.list}>
-          {PACKS.map(pack => (
-            <View key={pack.id} style={styles.packCard}>
-               <LinearGradient colors={pack.gradient as any} style={styles.packStrip} />
-               <View style={[styles.packIcon, {backgroundColor: pack.color}]}>
-                 <Text style={{fontSize: 24}}>{pack.icon}</Text>
-               </View>
-               <View style={styles.packInfo}>
-                 <Text style={styles.packTitle}>{pack.title}</Text>
-                 <Text style={styles.packSub}>{pack.sub}</Text>
-                 <View style={styles.chipRow}>
-                   <View style={[styles.chip, {backgroundColor: pack.color}]}><Text style={[styles.chipText, {color: pack.textColor}]}>English</Text></View>
-                 </View>
-               </View>
-               <TouchableOpacity style={[styles.dlBtn, pack.btn === 'free' ? {backgroundColor: Colors.mintD} : {backgroundColor: Colors.saffron}]}>
-                 <Text style={{color: 'white', fontWeight: '800'}}>⬇</Text>
-               </TouchableOpacity>
-            </View>
-          ))}
-        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={Colors.saffron} style={{ marginTop: 30 }} />
+        ) : (
+          <View style={styles.list}>
+            {downloads.map(item => (
+              <View key={item.id} style={styles.packCard}>
+                <LinearGradient colors={[item.gradientStart || '#FF9933', item.gradientEnd || '#FF6B35']} style={styles.packStrip} />
+                <View style={[styles.packIcon, { backgroundColor: item.color || '#FFF0E0' }]}>
+                  <Text style={{ fontSize: 24 }}>{item.icon || '📚'}</Text>
+                </View>
+                <View style={styles.packInfo}>
+                  <Text style={styles.packTitle}>{item.title}</Text>
+                  <Text style={styles.packSub}>{item.sub || 'Flashcards · PDF'}</Text>
+                  <View style={styles.chipRow}>
+                    <View style={[styles.chip, { backgroundColor: item.color || '#FFF0E0' }]}><Text style={[styles.chipText, { color: item.textColor || '#FF6B35' }]}>{item.language || 'English'}</Text></View>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[styles.dlBtn, item.btnMode === 'free' ? { backgroundColor: Colors.mintD } : { backgroundColor: Colors.saffron }]}
+                  onPress={() => handleDownload(item)}
+                >
+                  <Text style={{ color: 'white', fontWeight: '800' }}>⬇</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );

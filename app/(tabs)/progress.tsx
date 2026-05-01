@@ -1,25 +1,91 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/Colors';
-import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { getUserWithChildren, fetchChildActivities } from '../../services/firestore';
+
+const getDynamicChartData = (activities: any[]) => {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  
+  const colors = [
+    Colors.mint,     // Mon
+    Colors.lavD,     // Tue
+    Colors.pink,     // Wed
+    Colors.butterD,  // Thu
+    Colors.mintD,    // Fri
+    Colors.peachD,   // Sat
+    Colors.skyD      // Sun
+  ];
+
+  const weekData = days.map((day, idx) => ({ day, count: 0, defaultColor: colors[idx] }));
+
+  if (activities && Array.isArray(activities)) {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const distanceToMonday = currentDay === 0 ? 6 : currentDay - 1;
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    activities.forEach(act => {
+      let actDate;
+      if (act.createdAt?.toDate) {
+        actDate = act.createdAt.toDate();
+      } else if (typeof act.createdAt === 'string' || typeof act.createdAt === 'number') {
+        actDate = new Date(act.createdAt);
+      } else if (act.createdAt instanceof Date) {
+        actDate = act.createdAt;
+      }
+
+      if (actDate && actDate >= startOfWeek) {
+        const dIndex = actDate.getDay() === 0 ? 6 : actDate.getDay() - 1;
+        if (weekData[dIndex]) {
+          weekData[dIndex].count += 1;
+        }
+      }
+    });
+  }
+
+  const maxCount = Math.max(...weekData.map(d => d.count), 1);
+
+  return weekData.map(d => ({
+    day: d.day,
+    h: `${Math.max(5, (d.count / maxCount) * 100)}%`, // min 5% height
+    c: d.count > 0 ? d.defaultColor : '#F0E8D8'
+  }));
+};
 
 export default function ProgressScreen() {
+  const { user } = useAuth();
   const [userData, setUserData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
+    if (!user) return;
     try {
-      const user = await api.get('/user').then(res => res.data);
-      const childData = await api.get(`/child/${user.children[0]._id}`).then(res => res.data);
-      setUserData(childData);
+      const data = await getUserWithChildren(user.uid);
+      if (data && data.children && data.children.length > 0) {
+        const childId = data.children[0]._id;
+        const activitiesData = await fetchChildActivities(user.uid, childId);
+        // Combine child data with activities exactly how the UI expects
+        const childData = {
+          ...data.children[0],
+          activities: activitiesData.activities || []
+        };
+        setUserData(childData);
+      }
     } catch (err) {
       console.log("Error loading progress", err);
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [user])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -55,15 +121,7 @@ export default function ProgressScreen() {
           <View style={styles.weeklyChart}>
             <Text style={styles.chartTitle}>This Week — Sessions Completed</Text>
             <View style={styles.chartBars}>
-              {[
-                {day: 'Mon', h: '40%', c: Colors.mint},
-                {day: 'Tue', h: '60%', c: Colors.lavD},
-                {day: 'Wed', h: '30%', c: Colors.pink},
-                {day: 'Thu', h: '80%', c: Colors.butterD},
-                {day: 'Fri', h: '50%', c: Colors.mintD},
-                {day: 'Sat', h: '10%', c: '#F0E8D8'},
-                {day: 'Sun', h: '5%', c: '#F0E8D8'},
-              ].map(b => (
+              {getDynamicChartData(userData?.activities).map(b => (
                 <View key={b.day} style={styles.chartBarWrap}>
                    <View style={[styles.chartBar, {height: b.h as any, backgroundColor: b.c}]} />
                    <Text style={styles.chartDay}>{b.day}</Text>
@@ -74,23 +132,31 @@ export default function ProgressScreen() {
 
           <Text style={styles.activityTitle}>Recent Activity</Text>
           <View style={styles.timeline}>
-             {userData && userData.activities && userData.activities.map((act: any, i: number) => {
-               const isStory = act.type === 'story';
-               return (
-                 <View key={i} style={[styles.tlItem, i === userData.activities.length - 1 && { borderBottomWidth: 0 }]}>
-                    <View style={[styles.tlDot, {backgroundColor: isStory ? '#FFF3CC' : '#FFE4EE'}]}>
-                      <Text>{isStory ? '🌙' : '💛'}</Text>
-                    </View>
-                    <View style={styles.tlContent}>
-                       <Text style={styles.tlTitle}>{act.title}</Text>
-                       <Text style={styles.tlDate}>{new Date(act.createdAt).toLocaleDateString()} · +{act.stars} ⭐</Text>
-                    </View>
-                    <View style={[styles.tlBadge, {backgroundColor: isStory ? '#EDE4FF' : '#E4FFE8'}]}>
-                      <Text style={[styles.tlBadgeText, {color: isStory ? Colors.lavD : Colors.mintD}]}>{isStory ? 'Story' : 'Done'}</Text>
-                    </View>
-                 </View>
-               );
-             })}
+             {(!userData?.activities || userData.activities.length === 0) ? (
+               <View style={styles.emptyState}>
+                 <Text style={styles.emptyStateEmoji}>🌱</Text>
+                 <Text style={styles.emptyStateTitle}>No activities yet!</Text>
+                 <Text style={styles.emptyStateDesc}>Complete a session or read a story to see your progress here.</Text>
+               </View>
+             ) : (
+               userData.activities.map((act: any, i: number) => {
+                 const isStory = act.type === 'story';
+                 return (
+                   <View key={i} style={[styles.tlItem, i === userData.activities.length - 1 && { borderBottomWidth: 0 }]}>
+                      <View style={[styles.tlDot, {backgroundColor: isStory ? '#FFF3CC' : '#FFE4EE'}]}>
+                        <Text>{isStory ? '🌙' : '💛'}</Text>
+                      </View>
+                      <View style={styles.tlContent}>
+                         <Text style={styles.tlTitle}>{act.title}</Text>
+                         <Text style={styles.tlDate}>{(act.createdAt?.toDate ? act.createdAt.toDate() : new Date(act.createdAt)).toLocaleDateString()} · +{act.stars} ⭐</Text>
+                      </View>
+                      <View style={[styles.tlBadge, {backgroundColor: isStory ? '#EDE4FF' : '#E4FFE8'}]}>
+                        <Text style={[styles.tlBadgeText, {color: isStory ? Colors.lavD : Colors.mintD}]}>{isStory ? 'Story' : 'Done'}</Text>
+                      </View>
+                   </View>
+                 );
+               })
+             )}
           </View>
         </View>
       </ScrollView>
@@ -121,5 +187,9 @@ const styles = StyleSheet.create({
   tlTitle: { fontSize: 13, fontWeight: '800', color: Colors.brown },
   tlDate: { fontSize: 11, fontWeight: '600', color: Colors.mid, marginTop: 2 },
   tlBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  tlBadgeText: { fontSize: 10, fontWeight: '800' }
+  tlBadgeText: { fontSize: 10, fontWeight: '800' },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 32, gap: 10 },
+  emptyStateEmoji: { fontSize: 48 },
+  emptyStateTitle: { fontSize: 16, fontWeight: '800', color: Colors.brown },
+  emptyStateDesc: { fontSize: 13, fontWeight: '600', color: Colors.mid, textAlign: 'center', paddingHorizontal: 20 },
 });

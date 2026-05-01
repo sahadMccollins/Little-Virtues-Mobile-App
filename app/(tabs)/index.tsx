@@ -1,28 +1,91 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/Colors';
-import api from '../../services/api';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+import { getUserWithChildren, updateChildProfile } from '../../services/firestore';
+import { getValues } from '../../services/api';
 
 export default function HomeScreen() {
+  const { user } = useAuth();
   const [userData, setUserData] = useState<any>(null);
+  const [todayValue, setTodayValue] = useState<any>(null);
+  const [isSessionComplete, setIsSessionComplete] = useState(false);
+  const [allComplete, setAllComplete] = useState(false);
+  const [unplayedCount, setUnplayedCount] = useState(0);
+  const [totalValuesCount, setTotalValuesCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
+  // console.log("todayValue", todayValue);
+  // console.log("isSessionComplete", isSessionComplete);
+  // console.log("allComplete", allComplete);
+
   const loadData = async () => {
+    if (!user) return;
     try {
-      const user = await api.get('/user').then(res => res.data);
-      setUserData(user);
+      const fetchedUser = await getUserWithChildren(user.uid);
+      // console.log("fetchedUser", fetchedUser);
+      const child: any = fetchedUser?.children?.[0];
+      // console.log("child", child);
+
+      if (child) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let lastDate: Date | null = null;
+        if (child.lastSessionDate) {
+          lastDate = typeof child.lastSessionDate.toDate === 'function'
+            ? child.lastSessionDate.toDate()
+            : new Date(child.lastSessionDate); // fallback if mock
+          lastDate?.setHours(0, 0, 0, 0);
+        }
+
+        // Streak Zero logic
+        if (lastDate && today.getTime() - lastDate.getTime() > 86400000 && child.currentStreak > 0) {
+          child.currentStreak = 0;
+          child.streak = 0;
+          updateChildProfile(user.uid, child._id, { currentStreak: 0, streak: 0 }); // Intentionally non-blocking async
+        }
+
+        setIsSessionComplete(lastDate ? lastDate.getTime() === today.getTime() : false);
+      }
+      // console.log("fetchedUser", fetchedUser);
+      setUserData(fetchedUser);
+
+      const valRes = await getValues();
+      // console.log("valRes", valRes);
+      let stValues = valRes.data || [];
+      stValues.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+      setTotalValuesCount(stValues.length);
+
+      if (child) {
+        const comp = child.completedValues || [];
+        const unplayed = stValues.filter((v: any) => !comp.includes(v.id));
+        setUnplayedCount(unplayed.length);
+        if (unplayed.length === 0) {
+          setAllComplete(true);
+          setTodayValue(null);
+        } else {
+          setTodayValue(unplayed[0]);
+        }
+      } else {
+        setUnplayedCount(stValues.length);
+        setTodayValue(stValues[0]);
+      }
+
     } catch (err) {
       console.log("Error loading user", err);
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [user])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -42,10 +105,16 @@ export default function HomeScreen() {
           <SafeAreaView edges={['top']}>
             <View style={styles.parentRow}>
               <View>
-                <Text style={styles.parentGreeting}>Good morning, {userData?.name || 'Parent'} 🌤</Text>
+                <Text style={styles.parentGreeting}>Good morning, {userData?.displayName || 'Parent'} 🌤</Text>
                 <Text style={styles.parentName}>Ready to teach? 📖</Text>
               </View>
-              <View style={styles.avatar}><Text style={{ fontSize: 24 }}>👩</Text></View>
+              <TouchableOpacity style={styles.avatar} onPress={() => router.push('/profile')}>
+                {userData?.avatar?.startsWith('http') ? (
+                  <Image source={{ uri: userData.avatar }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                ) : (
+                  <Text style={{ fontSize: 24 }}>{userData?.avatar || '👩'}</Text>
+                )}
+              </TouchableOpacity>
             </View>
             <View style={styles.teachingTip}>
               <Text style={styles.tipIcon}>💡</Text>
@@ -55,15 +124,40 @@ export default function HomeScreen() {
         </LinearGradient>
 
         <View style={styles.homeBody}>
-          <LinearGradient colors={['#FFB3C6', '#C9B8F0']} style={styles.todayTeach} start={[0, 0]} end={[1, 1]}>
-            <Text style={styles.teachLabel}>📚 Today's Teaching Session</Text>
-            <Text style={styles.teachValue}>Kindness 💛</Text>
-            <Text style={styles.teachHint}>Story + 3 flashcards + action task</Text>
-            <TouchableOpacity style={styles.teachBtn} onPress={() => router.push('/teach')}>
-              <Text style={styles.teachBtnText}>▶ Start Teaching · 5 min</Text>
-            </TouchableOpacity>
-            <Text style={styles.bookEmojiBg}>📖</Text>
-          </LinearGradient>
+          {allComplete ? (
+            <LinearGradient colors={['#D4FFEA', '#A8E6CF']} style={styles.todayTeach} start={[0, 0]} end={[1, 1]}>
+              <Text style={styles.teachLabel}>🎉 Incredible Job!</Text>
+              <Text style={[styles.teachValue, { color: Colors.brown }]}>All Values Completed</Text>
+              <Text style={[styles.teachHint, { color: Colors.mid }]}>You've played every available session. Check the library!</Text>
+              <TouchableOpacity style={[styles.teachBtn, { backgroundColor: Colors.brown }]} onPress={() => router.push('/explore')}>
+                <Text style={{ color: 'white', fontWeight: '800' }}>📚 Explore Library</Text>
+              </TouchableOpacity>
+              <Text style={styles.bookEmojiBg}>🌟</Text>
+            </LinearGradient>
+          ) : isSessionComplete ? (
+            <LinearGradient colors={['#E4FFE8', '#C3ECD4']} style={styles.todayTeach} start={[0, 0]} end={[1, 1]}>
+              <Text style={styles.teachLabel}>✅ Done for Today</Text>
+              <Text style={[styles.teachValue, { color: Colors.brown }]}>Session Complete!</Text>
+              <Text style={[styles.teachHint, { color: Colors.mid }]}>Your streak is protected. See you tomorrow!</Text>
+              <TouchableOpacity style={styles.teachBtn} onPress={() => router.push('/explore')}>
+                <Text style={[styles.teachBtnText, { color: Colors.brown }]}>Replay past values</Text>
+              </TouchableOpacity>
+              <Text style={styles.bookEmojiBg}>🏆</Text>
+            </LinearGradient>
+          ) : todayValue ? (
+            <LinearGradient colors={['#FFB3C6', '#C9B8F0']} style={styles.todayTeach} start={[0, 0]} end={[1, 1]}>
+              <Text style={styles.teachLabel}>📚 Today's Teaching Session</Text>
+              <Text style={styles.teachValue}>{todayValue.title} {todayValue.icon || '💛'}</Text>
+              <Text style={styles.teachHint}>Story + flashcards + action task</Text>
+              <TouchableOpacity
+                style={styles.teachBtn}
+                onPress={() => router.push({ pathname: '/teach', params: { id: todayValue.documentId || todayValue.id } })}
+              >
+                <Text style={styles.teachBtnText}>▶ Start Teaching · 5 min</Text>
+              </TouchableOpacity>
+              <Text style={styles.bookEmojiBg}>📖</Text>
+            </LinearGradient>
+          ) : null}
 
           <View style={styles.grid2}>
             <TouchableOpacity style={[styles.miniFeature, { backgroundColor: '#FFF3CC' }]} onPress={() => router.push('/jar')}>
@@ -74,12 +168,13 @@ export default function HomeScreen() {
             <TouchableOpacity style={[styles.miniFeature, { backgroundColor: '#E4E0FF' }]} onPress={() => router.push('/stories')}>
               <Text style={styles.mfIcon}>🌙</Text>
               <Text style={styles.mfTitle}>Bedtime Stories</Text>
-              <Text style={styles.mfSub}>3 new stories</Text>
+              <Text style={styles.mfSub}>{unplayedCount > 0 ? `${unplayedCount} new stories` : 'All read 🎉'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.miniFeature, { backgroundColor: '#E4F7EE' }]} onPress={() => router.push('/downloads')}>
-              <Text style={styles.mfIcon}>⬇️</Text>
+              <Text style={styles.mfIcon}>📚</Text>
               <Text style={styles.mfTitle}>Downloads</Text>
-              <Text style={styles.mfSub}>Gita, Hanuman…</Text>
+              {/* <Text style={styles.mfSub}>{totalValuesCount} total values</Text> */}
+              <Text style={styles.mfSub}>Gita, Hanuman...</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.miniFeature, { backgroundColor: '#FFE4EE' }]} onPress={() => router.push('/progress')}>
               <Text style={styles.mfIcon}>📊</Text>
@@ -89,7 +184,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.childCard}>
-            <View style={styles.childAvatar}><Text style={{ fontSize: 20 }}>🧒</Text></View>
+            <View style={styles.childAvatar}><Text style={{ fontSize: 20 }}>{child?.avatar || '🧒'}</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.childName}>{child?.name || 'Child'}</Text>
               <Text style={styles.childStreak}>🔥 {child?.streak || 0} day streak · {child?.values || 0} values learned</Text>

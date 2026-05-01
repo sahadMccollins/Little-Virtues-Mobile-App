@@ -1,24 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../constants/Colors';
-import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { getUserWithChildren } from '../../services/firestore';
 
 export default function JarScreen() {
+  const { user } = useAuth();
   const [userData, setUserData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
+    if (!user) return;
     try {
-      const user = await api.get('/user').then(res => res.data);
-      setUserData(user);
+      const data = await getUserWithChildren(user.uid);
+      setUserData(data);
     } catch (err) {
       console.log("Error loading user", err);
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [user])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
